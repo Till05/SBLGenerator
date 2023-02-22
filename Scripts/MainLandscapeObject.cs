@@ -5,6 +5,7 @@ using LandscapeGenerator;
 using FluffyUnderware.Curvy;
 using System.Threading;
 using UnityEngine.Events;
+using UnityEngine.Profiling;
 
 public class MainLandscapeObject : MonoBehaviour
 {
@@ -29,6 +30,9 @@ public class MainLandscapeObject : MonoBehaviour
 
     public int sampels_number = 10;
 
+    public int Discretesation_Iterations = 30;
+    public int Relaxation_Iterations = 10;
+
     Landscape landscape;
     public bool generateLandscape = false;
 
@@ -38,18 +42,54 @@ public class MainLandscapeObject : MonoBehaviour
 
     public ComputeShader interpolationShader;
     public ComputeShader diffusionShader;
-    public ComputeShader erosionShader;
     public RenderTexture renderTexture;
 
     // Start is called before the first frame update
     void Start()
+    {
+        RebuildLandscape();
+
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        //RebuildLandscape();
+        //Profiler.BeginSample("calPoint");
+        //landscape.m_Chunks[0].calPointQuadTree(new Vector2(200, 0));
+        //Profiler.EndSample();
+        /*
+        if (generateLandscape)
+        {
+            //Debug.Log("build Landscape");
+            landscape.makeLandscapeSplines();
+            //RebuildLandscape();
+            landscape.UpdateChunks(m_genSettings, m_EventArgs);
+            generateLandscape = false;
+            //landscape.UpdateMeshes();
+        }*/
+        //Debug.Log(0);
+        //landscape.ErodeLandscape(1);
+        //landscape.GenerateChunks(m_genSettings);
+
+        //landscape.GenerateMeshes();
+    }
+
+    public void OnSplinesChanged(CurvySplineEventArgs stuff)
+    {
+        generateLandscape = true;
+        
+        m_EventArgs = stuff;
+        //Debug.Log("Splines Changed");
+    }
+
+    void RebuildLandscape()
     {
         landscape = new Landscape(self, Camera, m_SplineParent);
         landscape.LandscapeShader = LandscapeShader;
         landscape.WaterShader = WaterShader;
         landscape.interpolationShader = interpolationShader;
         landscape.diffusionShader = diffusionShader;
-        landscape.erosionShader = erosionShader;
 
         for (int i = 0; i < m_SplineParent.transform.childCount; i++)
         {
@@ -66,70 +106,16 @@ public class MainLandscapeObject : MonoBehaviour
         m_genSettings.numOctaves = 8;
         m_genSettings.persistence = 0.5f;
         m_genSettings.resAmplifier = m_resAmplifier;
+        m_genSettings.discInts = Discretesation_Iterations;
+        m_genSettings.relaxtIts = Relaxation_Iterations;
 
         landscape.makeLandscapeSplines();
+        //landscape.quadTree.traceTree(new Vector2(0, 0), new Vector2(1, 1));
         landscape.CircularChunkArrangement(m_RenderDistance, m_ChunkSize, m_Res, m_resAmplifier);
-        //landscape.SquareChunkArrangement(m_RenderDistance, m_ChunkSize, m_Res, m_resAmplifier);
+        ////landscape.SquareChunkArrangement(m_RenderDistance, m_ChunkSize, m_Res, m_resAmplifier);
         landscape.GenerateChunks(m_genSettings);
-        landscape.m_Chunks[0].InitialiseErosion();
-        //landscape.ErodeLandscape(30);
+        ////landscape.ErodeLandscape(50);
         landscape.GenerateMeshes();
         landscape.UpdateMeshes();
-
-        
-
-        //landscape.GenerateMeshes();
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        /*
-        if (generateLandscape)
-        {
-            //Debug.Log("build Landscape");
-            landscape.makeLandscapeSplines();
-            RebuildLandscape();
-            generateLandscape = false;
-        }*/
-        //landscape.UpdateMeshes();
-        //Debug.Log(0);
-        landscape.ErodeLandscape(1);
-        renderTexture = landscape.renderTexture;
-        //landscape.GenerateChunks(m_genSettings);
-
-        landscape.GenerateMeshes();
-        landscape.UpdateMeshes();
-    }
-
-    public void OnSplinesChanged(CurvySplineEventArgs stuff)
-    {
-        generateLandscape = true;
-        
-        m_EventArgs = stuff;
-        //Debug.Log("Splines Changed");
-    }
-
-    void RebuildLandscape()
-    {
-        if (m_LandscapeThread != null)
-        {
-            //Debug.Log("thing");
-            if (m_LandscapeThread.IsAlive)
-            {
-
-            }
-            else
-            {
-                m_LandscapeThread = new Thread(() => landscape.UpdateChunks(m_genSettings, m_EventArgs));
-                m_LandscapeThread.Start();
-            }
-        }
-        else
-        {
-            //Debug.Log("other thing");
-            m_LandscapeThread = new Thread(() => landscape.UpdateChunks(m_genSettings, m_EventArgs));
-            m_LandscapeThread.Start();
-        }
     }
 }

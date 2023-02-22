@@ -59,8 +59,6 @@ public class MeshGrid
     {
         //res: die anzhal der Vertecies pro Seite
         //size: die größe des Meshes
-        meshObj.name = "grid" + " " + position.x + " " + position.y + " Water";
-
         int res = heightmap.GetLength(0);
         m_Heightmap = new float[res, res];
 
@@ -102,8 +100,6 @@ public class MeshGrid
                 triangles_List.Add(((i + 1) * (res + 1)) + j + 1);
             }
         }
-
-        triangles = triangles_List.ToArray();
 
         /*
         for (int x = 0; x < res; x++)

@@ -11,8 +11,22 @@ namespace LandscapeGenerator
         public List<Vector3> m_Points = new List<Vector3>();
         public List<Vector2[]> m_Coefficients = new List<Vector2[]>();
         public List<Vector2[]> m_BoundingBoxes = new List<Vector2[]>();
+        public List<Vector3[]> m_DiscPoints = new List<Vector3[]>();
+
+        public int m_Number_Segments
+        {
+            get
+            {
+                return (m_Points.Count - 4) / 3 + 1;
+            }
+        }
 
         public BezierSpline() { }
+
+        public BezierSpline(List<Vector3> points)
+        {
+            m_Points = points;
+        }
 
         public BezierSpline(CurvySpline Spline)
         {
@@ -35,8 +49,51 @@ namespace LandscapeGenerator
                 m_Points.Add(Spline.ControlPointsList[0].HandleInPosition);
                 m_Points.Add(Spline.ControlPointsList[0].transform.position);
             }
+        }
 
+        public Vector3 Bezier(float g)
+        {
+            int i = Mathf.FloorToInt(g);
+            float t = g - i;
 
+            Vector3 point1 = m_Points[i * 3 + 0];
+            Vector3 point2 = m_Points[i * 3 + 1];
+            Vector3 point3 = m_Points[i * 3 + 2];
+            Vector3 point4 = m_Points[i * 3 + 3];
+
+            return (-point1 + 3 * point2 - 3 * point3 + point4) * t * t * t +
+                   (3 * point1 - 6 * point2 + 3 * point3) * t * t +
+                   (-3 * point1 + 3 * point2) * t +
+                   point1;
+        }
+
+        public List<BezierSpline> splice_to_curves()
+        {
+            List<BezierSpline> curves = new List<BezierSpline>();
+
+            for (int j = 0; j < (m_Points.Count - 4) / 3 + 1; j++)
+            {
+                Vector3 point0 = m_Points[0 + 3 * j];
+                Vector3 point1 = m_Points[1 + 3 * j];
+                Vector3 point2 = m_Points[2 + 3 * j];
+                Vector3 point3 = m_Points[3 + 3 * j];
+
+                curves.Add(new BezierSpline(new List<Vector3> { point0, point1, point2, point3 }));
+
+                curves[j].m_BoundingBoxes.Add(m_BoundingBoxes[j]);
+                curves[j].m_DiscPoints.Add(m_DiscPoints[j]);
+                curves[j].m_Coefficients.Add(m_Coefficients[j]);
+            }
+
+            return curves;
+        }
+
+        public void drawBounds()
+        {
+            Debug.DrawLine(new Vector3(m_BoundingBoxes[0][0].x, 0, m_BoundingBoxes[0][0].y), new Vector3(m_BoundingBoxes[0][1].x, 0, m_BoundingBoxes[0][1].y), Color.red, 30);
+            Debug.DrawLine(new Vector3(m_BoundingBoxes[0][2].x, 0, m_BoundingBoxes[0][2].y), new Vector3(m_BoundingBoxes[0][3].x, 0, m_BoundingBoxes[0][3].y), Color.red, 30);
+            Debug.DrawLine(new Vector3(m_BoundingBoxes[0][0].x, 0, m_BoundingBoxes[0][0].y), new Vector3(m_BoundingBoxes[0][2].x, 0, m_BoundingBoxes[0][2].y), Color.red, 30);
+            Debug.DrawLine(new Vector3(m_BoundingBoxes[0][1].x, 0, m_BoundingBoxes[0][1].y), new Vector3(m_BoundingBoxes[0][3].x, 0, m_BoundingBoxes[0][3].y), Color.red, 30);
         }
 
         public static Vector3 Bezier(Vector3 point1, Vector3 point2, Vector3 point3, Vector3 point4, float t)
@@ -55,7 +112,7 @@ namespace LandscapeGenerator
                    point1;
         }
 
-        public void doPrecalcs()
+        public void doPrecalcs(int discInts)
         {
             for (int j = 0; j < (m_Points.Count - 4) / 3 + 1; j++)
             {
@@ -63,6 +120,13 @@ namespace LandscapeGenerator
                 Vector2 point1 = new Vector2(m_Points[1 + 3 * j].x, m_Points[1 + 3 * j].z);
                 Vector2 point2 = new Vector2(m_Points[2 + 3 * j].x, m_Points[2 + 3 * j].z);
                 Vector2 point3 = new Vector2(m_Points[3 + 3 * j].x, m_Points[3 + 3 * j].z);
+
+                Vector3[] pointsArray = new Vector3[discInts];
+                for (int i = 0; i < discInts; i++)
+                {
+                    pointsArray[i] = Bezier(point0, point1, point2, point3, i / (discInts - 1f));
+                }
+                m_DiscPoints.Add(pointsArray);
 
                 Vector2[] coefficients_array = new Vector2[4];
                 coefficients_array[0] = -point0 + (3 * point1) - (3 * point2) + point3;
@@ -116,10 +180,27 @@ namespace LandscapeGenerator
                 }
 
                 Vector2[] Bounds = new Vector2[] { new Vector2(x_most_up, y_most_up), new Vector2(x_most_down, y_most_up), new Vector2(x_most_up, y_most_down), new Vector2(x_most_down, y_most_down) };
+                //Color color = UnityEngine.Random.ColorHSV();
+                //Debug.DrawLine(new Vector3(Bounds[0].x, 0, Bounds[0].y), new Vector3(Bounds[1].x, 0, Bounds[1].y), color, 30);
+                //Debug.DrawLine(new Vector3(Bounds[2].x, 0, Bounds[2].y), new Vector3(Bounds[3].x, 0, Bounds[3].y), color, 30);
+                //Debug.DrawLine(new Vector3(Bounds[0].x, 0, Bounds[0].y), new Vector3(Bounds[2].x, 0, Bounds[2].y), color, 30);
+                //Debug.DrawLine(new Vector3(Bounds[1].x, 0, Bounds[1].y), new Vector3(Bounds[3].x, 0, Bounds[3].y), color, 30);
                 m_BoundingBoxes.Add(Bounds);
                 m_Coefficients.Add(coefficients_array);
             }
         }
+    }
+
+    public struct IntersectionData
+    {
+        public bool hit;
+        public bool hitOpp;
+
+        public float distance;
+        public float distanceOpp;
+
+        public float height;
+        public float heightOpp;
     }
 
     public struct GenSettings
@@ -143,57 +224,147 @@ namespace LandscapeGenerator
         public float scale;
         public float noise_strength;
         public int sampels_number;
+        public int discInts;
+        public int relaxtIts;
     }
 
-    public class SimulationSettings
+    class IntersectionTests
     {
-        [Range(0f, 10f)]
-        public float TimeScale = 0f;
+        public static bool test_Intersection_Quads(Vector2[] Bounds0, Vector2[] Bounds1)
+        {
+            foreach (Vector2 point in Bounds1)
+            {
+                if (!(point.x > Bounds0[0].x || point.y > Bounds0[0].y || point.x < Bounds0[3].x || point.y < Bounds0[3].y))
+                {
+                    return true;
+                }
+            }
 
-        public float PipeLength = 1;//1f / 256;
-        public Vector2 CellSize = new Vector2(1, 1);//new Vector2(1f / 256, 1f / 256);//new Vector2(1f / 256, 1f / 256);
+            foreach (Vector2 point in Bounds0)
+            {
+                if (!(point.x > Bounds1[0].x || point.y > Bounds1[0].y || point.x < Bounds1[3].x || point.y < Bounds1[3].y))
+                {
+                    return true;
+                }
+            }
 
-        [Range(0, 0.5f)]
-        public float RainRate = 0.003f;
+            return false;
+        }
 
-        [Range(0, 1f)]
-        public float Evaporation = 0.2f;
+        public static bool test_Intersection_Quad_Gerade(Vector2[] Bounds, Vector2 position, Vector2 normal)
+        {
+            float dot1 = Vector2.Dot(Bounds[0] - position, normal);
+            float dot2 = Vector2.Dot(Bounds[1] - position, normal);
+            float dot3 = Vector2.Dot(Bounds[2] - position, normal);
+            float dot4 = Vector2.Dot(Bounds[3] - position, normal);
 
-        [Range(0.001f, 1000)]
-        public float PipeArea = 5f;
+            float dot1sign = MathF.Sign(dot1);
 
-        [Range(0.1f, 20f)]
-        public float Gravity = 9.81f;
+            return !(dot1sign == MathF.Sign(dot2) && dot1sign == MathF.Sign(dot3) && dot1sign == MathF.Sign(dot4));
+        }
 
-        [Header("Hydraulic erosion")]
-        [Range(0.1f, 3f)]
-        public float SedimentCapacity = 100f;
+        public static IntersectionData test_Intersection_Curve_Gerade(BezierSpline spline, Vector2 position, Vector2 direction)
+        {
+            IntersectionData bestData;
+            bestData.hit = false;
+            bestData.hitOpp = false;
+            bestData.distance = 1000000;
+            bestData.distanceOpp = 1000000;
+            bestData.height = 0;
+            bestData.heightOpp = 0;
 
-        [Range(0.1f, 2f)]
-        public float SoilSuspensionRate = 0.8f;
 
-        [Range(0.1f, 3f)]
-        public float SedimentDepositionRate = 0.8f;
+            Vector2 PointA = position;
+            Vector2 PointB = position + direction;
+            List<Vector2[]> coefficients = spline.m_Coefficients;
+            List<Vector2[]> Bounds = spline.m_BoundingBoxes;
+            List<Vector3> points = spline.m_Points;
 
-        [Range(0f, 10f)]
-        public float SedimentSofteningRate = 5f; // 5f
+            Vector2 AminusB = direction;
+            Vector2 normal = new Vector2(AminusB.y, -AminusB.x);
 
-        [Range(0f, 40f)]
-        public float MaximalErosionDepth = 10f;
+            num.Complex[] t = new num.Complex[3];
 
-        [Header("Thermal erosion")]
-        [Range(0, 1000f)]
-        public float ThermalErosionTimeScale = 20f;
+            for (int i = 0; i < (points.Count - 4) / 3 + 1; i++)
+            {
+                Vector2[] bounds = Bounds[i];
 
-        [Range(0, 1f)]
-        public float ThermalErosionRate = 1f; // 0.15f
+                float dot1 = Vector2.Dot(bounds[0] - PointA, normal);
+                float dot2 = Vector2.Dot(bounds[1] - PointA, normal);
+                float dot3 = Vector2.Dot(bounds[2] - PointA, normal);
+                float dot4 = Vector2.Dot(bounds[3] - PointA, normal);
 
-        [Range(0f, 1f)]
-        public float TalusAngleTangentCoeff = 0.6f;
+                float dot1sign = MathF.Sign(dot1);
 
-        [Range(0f, 1f)]
-        public float TalusAngleTangentBias = 0.2f;
+                if (!(dot1sign == MathF.Sign(dot2) && dot1sign == MathF.Sign(dot3) && dot1sign == MathF.Sign(dot4)))
+                {
+                    Vector2 point0 = new Vector2(points[0 + 3 * i].x, points[0 + 3 * i].z);
+                    Vector2 point1 = new Vector2(points[1 + 3 * i].x, points[1 + 3 * i].z);
+                    Vector2 point2 = new Vector2(points[2 + 3 * i].x, points[2 + 3 * i].z);
+                    Vector2 point3 = new Vector2(points[3 + 3 * i].x, points[3 + 3 * i].z);
 
+                    Vector2 a = coefficients[i][0];
+                    Vector2 b = coefficients[i][1];
+                    Vector2 c = coefficients[i][2];
+                    Vector2 d = coefficients[i][3];
+
+                    float af = a.y * AminusB.x - a.x * AminusB.y;
+                    float bf = b.y * AminusB.x - b.x * AminusB.y;
+                    float cf = c.y * AminusB.x - c.x * AminusB.y;
+                    float df = (d.y - PointA.y) * AminusB.x - (d.x - PointA.x) * AminusB.y;
+
+                    float p = (bf * bf - 3 * af * cf);
+                    float q = (2 * bf * bf * bf - 9 * af * bf * cf + 27 * af * af * df);
+
+                    num.Complex C = num.Complex.Pow((q + num.Complex.Sqrt(q * q - 4 * p * p * p)) / 2, 1f / 3f);
+
+                    num.Complex n = (-1 + num.Complex.Sqrt(-3)) / 2;
+
+                    t[0] = -1 / (3 * af) * (bf + C + p / C);
+                    t[1] = -1 / (3 * af) * (bf + n * C + p / (n * C));
+                    t[2] = -1 / (3 * af) * (bf + n * n * C + p / (n * n * C));
+
+                    for (int j = 0; j < 3; j++)
+                    {
+                        if (t[j].Imaginary < 0.0001 && t[j].Imaginary > -0.00001)
+                        {
+                            float curr_t = Convert.ToSingle(t[j].Real);
+
+                            if (curr_t > 0 && curr_t < 1)
+                            {
+                                Vector3 bezier_point = BezierSpline.Bezier(points[0 + 3 * i], points[1 + 3 * i], points[2 + 3 * i], points[3 + 3 * i], curr_t);
+                                float possible_point_sign = (a.x * curr_t * curr_t * curr_t + b.x * curr_t * curr_t + c.x * curr_t + d.x - PointA.x) / (PointB.x - PointA.x);
+
+                                if (possible_point_sign > 0)
+                                {
+                                    float distance = (new Vector2(bezier_point.x, bezier_point.z) - PointA).magnitude;
+                                    float height = bezier_point.y;
+                                    if (bestData.distance > distance)
+                                    {
+                                        bestData.distance = distance;
+                                        bestData.height = height;
+                                        bestData.hit = true;
+                                    }
+                                }
+                                if (possible_point_sign < 0)
+                                {
+                                    float distance = (new Vector2(bezier_point.x, bezier_point.z) - PointA).magnitude;
+                                    float height = bezier_point.y;
+                                    if (bestData.distanceOpp > distance)
+                                    {
+                                        bestData.distanceOpp = distance;
+                                        bestData.heightOpp = height;
+                                        bestData.hitOpp = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return bestData;
+        }
     }
 
     class Noise

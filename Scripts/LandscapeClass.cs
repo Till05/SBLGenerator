@@ -17,6 +17,8 @@ namespace LandscapeGenerator
         public List<MeshGrid> m_Meshes = new List<MeshGrid>();
         public List<MeshGrid> m_WaterMeshes = new List<MeshGrid>();
 
+        public QuadTree quadTree;
+
         //public Material LandscapeMaterial;
         public Shader WaterShader;
 
@@ -31,7 +33,6 @@ namespace LandscapeGenerator
 
         public ComputeShader interpolationShader;
         public ComputeShader diffusionShader;
-        public ComputeShader erosionShader;
         public RenderTexture renderTexture;
 
         public Landscape(GameObject self, GameObject camera, GameObject splineParent)
@@ -50,17 +51,18 @@ namespace LandscapeGenerator
                     float distance = Mathf.Sqrt(x * x + y * y);
                     if (distance < renderDistance)
                     {
-                        int resolution = Mathf.CeilToInt(res / (1 + distance));
+                        int resolution = Mathf.FloorToInt(Mathf.Pow(2, Mathf.CeilToInt(res / (1 + distance)))*8+2);
+                        //int resolution = Mathf.FloorToInt(Mathf.Pow(2,res))*8+2;
 
                         Vector2 chunkPos = new Vector2(x * ChunkSize - ChunkSize / 2 + m_Camera.transform.position.x, y * ChunkSize - ChunkSize / 2 + m_Camera.transform.position.z);
 
                         MeshGrid chunk = new MeshGrid(m_Self, chunkPos, ChunkSize, LandscapeShader);
                         MeshGrid waterChunk = new MeshGrid(m_Self, chunkPos, ChunkSize, WaterShader);
                         Chunk landscapeChunk = new Chunk(resolution, ChunkSize, chunkPos.x, chunkPos.y, this);
+                        landscapeChunk.compile_relevant_Splines();
 
                         landscapeChunk.interpolationShader = interpolationShader;
                         landscapeChunk.diffusionShader = diffusionShader;
-                        landscapeChunk.erosionShader = erosionShader;
 
                         m_Meshes.Add(chunk);
                         m_Chunks.Add(landscapeChunk);
@@ -81,7 +83,9 @@ namespace LandscapeGenerator
                 {
                     float distance = Mathf.Sqrt(x * x + y * y);
 
-                    int resolution = Mathf.CeilToInt(res / (1 + distance));
+                    int resolution = Mathf.CeilToInt(res / (1 + distance));//Mathf.FloorToInt(Mathf.Pow(2, ) * 8 + 2);
+                    //Debug.Log(res);
+                    //Debug.Log(resolution);
                     //int resolution = res;
                     Vector2 chunkPos = new Vector2(x * ChunkSize - ChunkSize / 2 + m_Camera.transform.position.x, y * ChunkSize - ChunkSize / 2 + m_Camera.transform.position.z);
 
@@ -133,8 +137,11 @@ namespace LandscapeGenerator
                 splines.Add(bezierSpline);
                 Endpoints.Add(bezierSpline.m_Points[0]);
                 Endpoints.Add(bezierSpline.m_Points[bezierSpline.m_Points.Count - 1]);
-                bezierSpline.doPrecalcs();
+                bezierSpline.doPrecalcs(50);
             }
+
+            quadTree = new QuadTree();
+            quadTree.constructTree(splines, 5);
 
             m_LandscapeSplines = splines;
         }
@@ -144,7 +151,8 @@ namespace LandscapeGenerator
             for (int i = 0; i < m_Chunks.Count; i++)
             {
                 m_Chunks[i].m_LandscapeSplines = m_LandscapeSplines;
-                m_Chunks[i].GenerateChunk(genSettings);
+                m_Chunks[i].GenerateChunkDiffusion(genSettings);
+                //m_Chunks[i].GenerateChunk(genSettings);
                 m_Chunks[i].GenerateInterpolation();
                 //m_Chunks[i].GenerateInterpolationGPU();
             }
@@ -176,8 +184,37 @@ namespace LandscapeGenerator
         public void UpdateChunks(GenSettings genSettings, CurvySplineEventArgs Args)
         {
             is_working = true;
-            GenerateChunks(genSettings);
-            GenerateMeshes();
+            if (Args != null)
+            {
+                BezierSpline spline = new BezierSpline(Args.Spline);
+                spline.doPrecalcs(0);
+                for(int j = 0; j < m_Chunks.Count; j++)
+                {
+                    bool inside = false;
+                    for (int i = 0; i < spline.m_BoundingBoxes.Count; i++)
+                    {
+                        foreach (Vector2 point in spline.m_BoundingBoxes[i])
+                        {
+                            if (!(point.x < m_Chunks[j].m_Pos.x || point.y < m_Chunks[j].m_Pos.y || point.x > m_Chunks[j].m_Pos.x + m_Chunks[j].m_Size || point.y > m_Chunks[j].m_Pos.y + m_Chunks[j].m_Size))
+                            {
+                                inside = true;
+                            }
+                        }
+                    }
+                    if (inside)
+                    {
+                        m_Chunks[j].m_LandscapeSplines = m_LandscapeSplines;
+                        m_Chunks[j].GenerateChunkDiffusion(genSettings);
+                        m_Chunks[j].GenerateInterpolation();
+
+                        m_Meshes[j].BuildFromHeightmap(m_Chunks[j].m_HeightMapInterpolated);
+                        m_Meshes[j].UpdateMesh();
+                    }
+                }
+            }
+            
+            //GenerateChunks(genSettings);
+            //GenerateMeshes();
             is_working = false;
         }
 
@@ -189,7 +226,9 @@ namespace LandscapeGenerator
                 for (int i = 0; i < m_Chunks.Count; i++)
                 {
                     //m_Chunks[i].CalculateSedimentMovement();
-                    m_Chunks[i].erodeChunk(timesteps);
+
+                    float[,] waterHeight = m_Chunks[i].erodeChunk(timesteps);
+                    m_WaterMeshes[i].BuildFromWaterHeight(m_Chunks[i].m_HeightMapInterpolated, waterHeight);
                 }
 
                 /*
@@ -200,10 +239,7 @@ namespace LandscapeGenerator
                 }*/
             }
 
-            m_WaterMeshes[0].BuildFromWaterHeight(m_Chunks[0].m_HeightMapInterpolated, m_Chunks[0].m_WaterHeightMap);
-            m_WaterMeshes[0].UpdateMesh();
 
-            /*
             for (int i = 0; i < m_Chunks.Count; i++)
             {
                 for (int x = 0; x < m_Chunks[i].m_HeightMapInterpolated.GetLength(0); x++)
@@ -218,7 +254,7 @@ namespace LandscapeGenerator
                         //Debug.Log(m_Chunks[i].waterHeight[x, y]);
                     }
                 }
-            }*/
+            }
         }
     }
 }

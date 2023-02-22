@@ -2,6 +2,7 @@
 #pragma kernel Relax
 #pragma kernel Apply
 #pragma kernel Initialise
+#pragma kernel Interpolate
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
@@ -42,4 +43,27 @@ void Apply (uint3 id : SV_DispatchThreadID)
 void Initialise (uint3 id : SV_DispatchThreadID)
 {
     Result[id.xy] = Input[id.xy];
+}
+
+[numthreads(8,8,1)]
+void Interpolate (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x % 2 == 0 && id.y % 2 == 0)
+    {
+        TempTex[id.xy] = Result[id.xy/2+1];
+    }
+    else if (id.x % 2 == 1 && id.x % 2 == 1)
+    {
+        float corner1 = Result[floor(id.xy/2.0+1)];
+        float corner2 = Result[int2(floor(id.x/2.0+1), ceil(id.y/2.0+1))];
+        float corner3 = Result[ceil(id.xy/2.0+1)];
+        float corner4 = Result[int2(ceil(id.x/2.0+1), floor(id.y/2.0+1))];
+
+        TempTex[id.xy] = 0.25*(corner1 + corner2 + corner3 + corner4);
+    }
+    else
+    {
+        // Diese Rechnung funktioniert für beide übrigen Fälle
+        TempTex[id.xy] = 0.5*(Result[floor(id.xy/2.0+1)] + Result[ceil(id.xy/2.0+1)]);
+    }
 }

@@ -15,6 +15,8 @@ public class MainLandscapeObjectEditor : Editor
 
     SerializedProperty RenderDistance;
     SerializedProperty ChunkSize;
+    SerializedProperty Discretesation_Iterations;
+    SerializedProperty Relaxation_Iterations;
     SerializedProperty Resolution;
     SerializedProperty ResolutionAmplifier;
     SerializedProperty NumberOfSamples;
@@ -22,7 +24,6 @@ public class MainLandscapeObjectEditor : Editor
     SerializedProperty interpolationShader;
     SerializedProperty diffusionShader;
     SerializedProperty renderTexture;
-    SerializedProperty erosionShader;
 
 
     void OnEnable()
@@ -38,9 +39,11 @@ public class MainLandscapeObjectEditor : Editor
         Resolution = serializedObject.FindProperty("m_Res");
         ResolutionAmplifier = serializedObject.FindProperty("m_resAmplifier");
         NumberOfSamples = serializedObject.FindProperty("sampels_number");
+        Discretesation_Iterations = serializedObject.FindProperty("Discretesation_Iterations");
+        Relaxation_Iterations = serializedObject.FindProperty("Relaxation_Iterations");
+
         interpolationShader = serializedObject.FindProperty("interpolationShader");
         diffusionShader = serializedObject.FindProperty("diffusionShader");
-        erosionShader = serializedObject.FindProperty("erosionShader");
         renderTexture = serializedObject.FindProperty("renderTexture");
 
         generateLandscape = serializedObject.FindProperty("generateLandscape");
@@ -58,7 +61,6 @@ public class MainLandscapeObjectEditor : Editor
 
         EditorGUILayout.PropertyField(interpolationShader);
         EditorGUILayout.PropertyField(diffusionShader);
-        EditorGUILayout.PropertyField(erosionShader);
         EditorGUILayout.PropertyField(renderTexture);
         EditorGUILayout.PropertyField(WaterShader);
         EditorGUILayout.PropertyField(LandscapeShader);
@@ -70,6 +72,8 @@ public class MainLandscapeObjectEditor : Editor
         EditorGUILayout.PropertyField(Resolution);
         EditorGUILayout.PropertyField(ResolutionAmplifier);
         EditorGUILayout.PropertyField(NumberOfSamples);
+        EditorGUILayout.PropertyField(Discretesation_Iterations);
+        EditorGUILayout.PropertyField(Relaxation_Iterations);
 
         if (GUILayout.Button("Update Landscape"))
         {
